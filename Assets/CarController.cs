@@ -11,6 +11,15 @@ public class CarController : Agent
 {
     public int CollectedCheckpoint;
     [SerializeField] private Transform targetTransform;
+    //actions
+    public enum ActionTurn
+    {
+        Left, Right, Center
+    }
+    public enum ActionMove
+    {
+        Forward, Backward
+    }
     public override void OnEpisodeBegin()
     {
         transform.localPosition = new Vector3(-24.15858f, 0.03f, 8.39f);
@@ -18,12 +27,21 @@ public class CarController : Agent
     }
     public override void CollectObservations(VectorSensor sensor)
     {
-        sensor.AddObservation(transform.position);
-        sensor.AddObservation(targetTransform.position);
+        sensor.AddObservation(transform.localPosition);
+        sensor.AddObservation(targetTransform.localPosition);
+
+        sensor.AddObservation(targetTransform.localPosition.x);
+        sensor.AddObservation(targetTransform.localPosition.y);
     }
     public override void OnActionReceived(ActionBuffers actions)
     {
-        Debug.Log(actions.DiscreteActions[0]);
+        var actionTaken = actions.ContinuousActions;
+        float actionsSpeed = actionTaken[0];
+        float actionsSteering = actionTaken[1];
+        moveInput = actionsSpeed;
+        steerInput = actionsSteering;
+        Move();
+        Steer();
     }
     private void OnTriggerEvent(Collision collision)
     {
@@ -36,20 +54,19 @@ public class CarController : Agent
             EndEpisode();
         }
         if (collision.collider.tag == "FinishLine" && CollectedCheckpoint == 3) {
-            SetReward(4f);
+            SetReward(8f);
             EndEpisode();
         }
-    }
-    public void OnActionReceived()
-    {
-        float move = ;
     }
     public override void Heuristic(in ActionBuffers actionsOut)
     {
         ActionSegment<float> actions = actionsOut.ContinuousActions;
-        GetInputs();
-        AnimateWheels();
-        Move(); Steer(); Brake();
+        steerInput = Input.GetAxis("Horizontal");
+        moveInput = Input.GetAxis("Vertical");
+        actions[0] = moveInput;
+        actions[1] = steerInput;
+        Move();
+        Steer();
     }
     //The car controller
 
@@ -87,17 +104,6 @@ public class CarController : Agent
         carRb = GetComponent<Rigidbody>();
         carRb.centerOfMass = _centerOfMass;
     }
-
-    public void MoveInput(float input)
-    {
-        moveInput = input;
-    }
-
-    public void SteerInput(float input)
-    {
-        steerInput = input;
-    }
-
     void GetInputs()
     {
         
@@ -140,18 +146,6 @@ public class CarController : Agent
             {
                 wheel.wheelCollider.brakeTorque = 0;
             }
-        }
-    }
-
-    void AnimateWheels()
-    {
-        foreach(var wheel in wheels)
-        {
-            Quaternion rot;
-            Vector3 pos;
-            wheel.wheelCollider.GetWorldPose(out pos, out rot);
-            wheel.wheelModel.transform.position = pos;
-            wheel.wheelModel.transform.rotation = rot;
         }
     }
 }
