@@ -10,7 +10,11 @@ using UnityEngine;
 public class CarController : Agent
 {
     public int CollectedCheckpoint;
-    [SerializeField] private Transform targetTransform;
+    private int targetIndex;
+    [SerializeField] private Transform[] targetTransforms;
+    private Transform targetTransform;
+    public Rigidbody rigidbody;
+    
     //actions
     public enum ActionTurn
     {
@@ -22,16 +26,24 @@ public class CarController : Agent
     }
     public override void OnEpisodeBegin()
     {
-        transform.localPosition = new Vector3(-24.15858f, 0.03f, 8.39f);
-        CollectedCheckpoint = 0;
+        transform.localPosition = new Vector3(0f, 0f, 0f);
+        transform.localRotation = Quaternion.Euler(0f,0f,0f);
+        targetIndex = 0;
+        rigidbody = GetComponent<Rigidbody>();
+        rigidbody.velocity = Vector3.zero;
+        targetTransform = targetTransforms[targetIndex];
+        foreach(var cp in targetTransforms)
+        {
+            cp.gameObject.tag = "CheckPoint";
+        }
     }
     public override void CollectObservations(VectorSensor sensor)
     {
         sensor.AddObservation(transform.localPosition);
         sensor.AddObservation(targetTransform.localPosition);
 
-        sensor.AddObservation(targetTransform.localPosition.x);
-        sensor.AddObservation(targetTransform.localPosition.y);
+        sensor.AddObservation(rigidbody.velocity.x);
+        sensor.AddObservation(rigidbody.velocity.z);
     }
     public override void OnActionReceived(ActionBuffers actions)
     {
@@ -42,31 +54,49 @@ public class CarController : Agent
         steerInput = actionsSteering;
         Move();
         Steer();
+        AddReward(-0.001f);
     }
-    private void OnTriggerEvent(Collision collision)
+    private void OnTriggerEnter(Collider collision)
     {
-        if (collision.collider.tag == "CheckPoint") { 
-            AddReward(1f);
-            CollectedCheckpoint++;
+        if (collision.gameObject.tag == "CheckPoint") {
+            if (collision.gameObject.name == targetTransform.name)
+            {
+                AddReward(1f);
+                CollectedCheckpoint++;
+                targetIndex++;
+            }
+            else AddReward(-1f);
+            
+            targetTransform = targetTransforms[targetIndex];
+            collision.gameObject.tag = "Recieved CheckPoint";
+            if (targetIndex > targetTransforms.Length -1)
+            {
+                AddReward(1f);
+                EndEpisode();
+            }
         }
-        if (collision.collider.tag == "Wall") { 
+        if (collision.gameObject.tag == "Wall") {
             AddReward(-1f);
-            EndEpisode();
-        }
-        if (collision.collider.tag == "FinishLine" && CollectedCheckpoint == 3) {
-            SetReward(8f);
             EndEpisode();
         }
     }
     public override void Heuristic(in ActionBuffers actionsOut)
     {
         ActionSegment<float> actions = actionsOut.ContinuousActions;
-        steerInput = Input.GetAxis("Horizontal");
-        moveInput = Input.GetAxis("Vertical");
-        actions[0] = moveInput;
-        actions[1] = steerInput;
-        Move();
-        Steer();
+
+        actions[0] = 0;
+        actions[1] = 0;
+
+        if (Input.GetKey("w"))
+            actions[0] = 1;
+        if (Input.GetKey("s"))
+            actions[0] = -1;
+
+        if (Input.GetKey("d"))
+            actions[1] = +0.5f;
+
+        if (Input.GetKey("a"))
+            actions[1] = -0.5f;
     }
     //The car controller
 
@@ -84,8 +114,8 @@ public class CarController : Agent
         public Axel axel;
     }
 
-    public float maxAcceleration = 30.0f;
-    public float brakeAcceleration = 50.0f;
+    public float maxAcceleration = 100.0f;
+    public float brakeAcceleration = 150.0f;
 
     public float turnSensitivity = 1.0f;
     public float maxSteerAngle = 30.0f;
@@ -97,25 +127,11 @@ public class CarController : Agent
     float moveInput;
     float steerInput;
 
-    private Rigidbody carRb;
-
-    void Start()
-    {
-        carRb = GetComponent<Rigidbody>();
-        carRb.centerOfMass = _centerOfMass;
-    }
-    void GetInputs()
-    {
-        
-        moveInput = Input.GetAxis("Vertical");
-        steerInput = Input.GetAxis("Horizontal");
-    }
-
     void Move()
     {
         foreach(var wheel in wheels)
         {
-            wheel.wheelCollider.motorTorque = moveInput * 600 * maxAcceleration * Time.deltaTime;
+            wheel.wheelCollider.motorTorque = moveInput * 300 * maxAcceleration * Time.fixedDeltaTime;
         }
     }
 
@@ -127,24 +143,6 @@ public class CarController : Agent
             {
                 var _steerAngle = steerInput * turnSensitivity * maxSteerAngle;
                 wheel.wheelCollider.steerAngle = Mathf.Lerp(wheel.wheelCollider.steerAngle, _steerAngle, 0.6f);
-            }
-        }
-    }
-
-    void Brake()
-    {
-        if (Input.GetKey(KeyCode.Space) || moveInput == 0)
-        {
-            foreach (var wheel in wheels)
-            {
-                wheel.wheelCollider.brakeTorque = 300 * brakeAcceleration * Time.deltaTime;
-            }
-        }
-        else
-        {
-            foreach (var wheel in wheels)
-            {
-                wheel.wheelCollider.brakeTorque = 0;
             }
         }
     }

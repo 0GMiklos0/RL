@@ -7,15 +7,16 @@ TagManager:
   - CheckPoint
   - Wall
   - FinishLine
+  - Recieved CheckPoint
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Walls
   - Water
   - UI
-  - 
-  - 
+  - CheckPoints
+  - FinishLine
   - 
   - 
   - 

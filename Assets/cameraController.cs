@@ -8,7 +8,7 @@ public class cameraController : MonoBehaviour
     public float rotSmoothness;
     public Vector3 moveOffset;
     public Vector3 rotOffset;
-    public Transform carTarget;
+    [SerializeField]public Transform carTarget;
     void HandleMovement()
     {
         Vector3 targetPos = new Vector3();
